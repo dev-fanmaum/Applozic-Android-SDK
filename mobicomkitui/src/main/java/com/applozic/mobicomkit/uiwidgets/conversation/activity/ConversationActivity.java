@@ -907,7 +907,16 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
 
     @Override
     public void onBackPressed() {
-        super.onBackPressed();
+        try {
+            Intent upIntent = NavUtils.getParentActivityIntent(this);
+            if (upIntent != null && isTaskRoot()) {
+                TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        this.finish();
+        return;
     }
 
     public boolean isFromSearch() {
