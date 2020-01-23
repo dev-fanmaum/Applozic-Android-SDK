@@ -125,7 +125,10 @@ import java.util.Set;
 /**
  * Created by devashish on 6/25/2015.
  */
-public class ConversationActivity extends AppCompatActivity implements MessageCommunicator, MobiComKitActivityInterface, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener, ActivityCompat.OnRequestPermissionsResultCallback, MobicomkitUriListener, SearchView.OnQueryTextListener, OnClickReplyInterface, ALStoragePermissionListener, CustomToolbarListener {
+public class ConversationActivity extends AppCompatActivity implements MessageCommunicator, MobiComKitActivityInterface, GoogleApiClient.ConnectionCall
+
+
+s, GoogleApiClient.OnConnectionFailedListener, LocationListener, ActivityCompat.OnRequestPermissionsResultCallback, MobicomkitUriListener, SearchView.OnQueryTextListener, OnClickReplyInterface, ALStoragePermissionListener, CustomToolbarListener {
 
     public static final int LOCATION_SERVICE_ENABLE = 1001;
     public static final String TAKE_ORDER = "takeOrder";
@@ -910,42 +913,7 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
 
     @Override
     public void onBackPressed() {
-        if (isFromSearch()) {
-            return;
-        }
-
-        if (getSupportFragmentManager().getBackStackEntryCount() == 1) {
-            try {
-                Intent upIntent = NavUtils.getParentActivityIntent(this);
-                if (upIntent != null && isTaskRoot()) {
-                    TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            this.finish();
-            return;
-        }
-
-        Boolean takeOrder = getIntent().getBooleanExtra(TAKE_ORDER, false);
-        ConversationFragment conversationFragment = (ConversationFragment) getSupportFragmentManager().findFragmentByTag(ConversationUIService.CONVERSATION_FRAGMENT);
-        if (conversationFragment != null && conversationFragment.isVisible() && (conversationFragment.multimediaPopupGrid.getVisibility() == View.VISIBLE)) {
-            conversationFragment.hideMultimediaOptionGrid();
-            return;
-        }
-
-        if (takeOrder && getSupportFragmentManager().getBackStackEntryCount() == 2) {
-            Intent upIntent = NavUtils.getParentActivityIntent(this);
-            if (upIntent != null && isTaskRoot()) {
-                TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
-            }
-            ConversationActivity.this.finish();
-        } else if (getSupportFragmentManager().getBackStackEntryCount() > 1) {
-            getSupportFragmentManager().popBackStack();
-        } else {
-            super.onBackPressed();
-        }
-
+        super.onBackPressed();
     }
 
     public boolean isFromSearch() {
