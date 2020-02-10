@@ -47,8 +47,11 @@ public class DeleteConversationAsyncTask extends AsyncTask<Void, Integer, Long> 
     protected void onPreExecute() {
         super.onPreExecute();
         if (isThreaddelete) {
-            progressDialog = ProgressDialog.show(context, "",
+            progressDialog = ProgressDialog();
+            if(!progressDialog.isShowing()){
+                progressDialog.show(context, "",
                     context.getString(R.string.delete_thread_text), true);
+            }
         }
     }
 
