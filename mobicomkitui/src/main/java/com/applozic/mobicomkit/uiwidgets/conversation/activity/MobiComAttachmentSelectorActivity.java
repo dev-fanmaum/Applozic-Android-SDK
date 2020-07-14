@@ -1,8 +1,10 @@
 package com.applozic.mobicomkit.uiwidgets.conversation.activity;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
@@ -11,7 +13,9 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
@@ -24,6 +28,8 @@ import com.applozic.mobicomkit.api.account.user.MobiComUserPreference;
 import com.applozic.mobicomkit.api.attachment.FileClientService;
 import com.applozic.mobicomkit.api.conversation.Message;
 import com.applozic.mobicomkit.broadcast.ConnectivityReceiver;
+import com.applozic.mobicomkit.listners.AlCallback;
+import com.applozic.mobicomkit.listners.AttachmentFilteringListener;
 import com.applozic.mobicomkit.uiwidgets.AlCustomizationSettings;
 import com.applozic.mobicomkit.uiwidgets.ApplozicSetting;
 import com.applozic.mobicomkit.uiwidgets.R;
@@ -39,10 +45,15 @@ import java.lang.ref.WeakReference;
 import java.net.URLConnection;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
+import static java.util.Collections.disjoint;
 
 /**
  *
@@ -58,6 +69,7 @@ public class MobiComAttachmentSelectorActivity extends AppCompatActivity {
     public static String GROUP_NAME = "GROUP_NAME";
     private static int REQUEST_CODE_ATTACH_PHOTO = 10;
     AlCustomizationSettings alCustomizationSettings;
+    List<String> restrictedWords;
     FileClientService fileClientService;
     Uri imageUri;
     String userID, displayName, groupName;
@@ -106,6 +118,7 @@ public class MobiComAttachmentSelectorActivity extends AppCompatActivity {
         } else {
             alCustomizationSettings = new AlCustomizationSettings();
         }
+        restrictedWords = FileUtils.loadRestrictedWordsFile(this);
         choosenOption = getFilterOptions();
         fileClientService = new FileClientService(this);
         userPreferences = MobiComUserPreference.getInstance(this);
@@ -159,6 +172,11 @@ public class MobiComAttachmentSelectorActivity extends AppCompatActivity {
 
                 if (attachmentFileList.isEmpty()) {
                     Toast.makeText(getApplicationContext(), R.string.mobicom_select_attachment_text, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                if (!validateCaptionTextAndShowDialog()) {
+                    Utils.printLog(MobiComAttachmentSelectorActivity.this, TAG, "Caption Text is not valid");
                     return;
                 }
 
@@ -217,22 +235,16 @@ public class MobiComAttachmentSelectorActivity extends AppCompatActivity {
                     setResult(RESULT_OK, intent);
                     finish();
                 }
-
-
             }
         });
-
     }
 
     /**
      * @param uri
      */
     private void addUri(Uri uri) {
-
         attachmentFileList.add(uri);
         Utils.printLog(MobiComAttachmentSelectorActivity.this, TAG, "attachmentFileList  :: " + attachmentFileList);
-
-
     }
 
     /**
@@ -277,54 +289,73 @@ public class MobiComAttachmentSelectorActivity extends AppCompatActivity {
         }
 
         if (resultCode == Activity.RESULT_OK) {
-            Uri selectedFileUri = (intent == null ? null : intent.getData());
+            final Uri selectedFileUri = (intent == null ? null : intent.getData());
             Utils.printLog(MobiComAttachmentSelectorActivity.this, TAG, "selectedFileUri :: " + selectedFileUri);
             if (selectedFileUri != null) {
-                String fileName = null;
-                try {
-                    long maxFileSize = alCustomizationSettings.getMaxAttachmentSizeAllowed() * 1024 * 1024;
-                    Cursor returnCursor =
-                            getContentResolver().query(selectedFileUri, null, null, null, null);
-                    if (returnCursor != null) {
-                        int sizeIndex = returnCursor.getColumnIndex(OpenableColumns.SIZE);
-                        returnCursor.moveToFirst();
-                        Long fileSize = returnCursor.getLong(sizeIndex);
-                        returnCursor.close();
-                        if (fileSize > maxFileSize) {
-                            Toast.makeText(this, R.string.info_attachment_max_allowed_file_size, Toast.LENGTH_LONG).show();
-                            return;
+                if (getApplicationContext() instanceof AttachmentFilteringListener) {
+                    AttachmentFilteringListener filteringListener = (AttachmentFilteringListener) getApplicationContext();
+                    filteringListener.onAttachmentSelected(this, selectedFileUri, new AlCallback() {
+                        @Override
+                        public void onSuccess(Object response) {
+                            processUri(selectedFileUri);
                         }
-                    }
-                    String mimeType = FileUtils.getMimeTypeByContentUriOrOther(this, selectedFileUri);
-                    if (TextUtils.isEmpty(mimeType)) {
-                        return;
-                    }
-                    if (!checkMimeType(mimeType)) {
-                        Toast.makeText(this, R.string.info_file_attachment_mime_type_not_supported, Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-                    fileName = FileUtils.getFileName(this, selectedFileUri);
-                    String fileFormat = FileUtils.getFileFormat(fileName);
-                    String fileNameToWrite;
-                    if (TextUtils.isEmpty(fileFormat)) {
-                        String format = FileUtils.getFileFormat(FileUtils.getFile(this, selectedFileUri).getAbsolutePath());
-                        if (TextUtils.isEmpty(format)) {
-                            return;
-                        }
-                        fileNameToWrite = timeStamp + "." + format;
-                    } else {
-                        fileNameToWrite = timeStamp + "." + fileFormat;
-                    }
 
-                    File mediaFile = FileClientService.getFilePath(fileNameToWrite, getApplicationContext(), mimeType);
-                    new FileTaskAsync(mediaFile, selectedFileUri, this).execute((Void) null);
-                } catch (Exception e) {
-                    e.printStackTrace();
+                        @Override
+                        public void onError(Object error) {
+                            Utils.printLog(getApplicationContext(), TAG, "Error in file : " + GsonUtils.getJsonFromObject(error, Object.class));
+                        }
+                    });
+                } else {
+                    processUri(selectedFileUri);
                 }
             }
         }
         super.onActivityResult(requestCode, resultCode, intent);
+    }
+
+    public void processUri(Uri selectedFileUri) {
+        String fileName = null;
+        try {
+            long maxFileSize = alCustomizationSettings.getMaxAttachmentSizeAllowed() * 1024 * 1024;
+            Cursor returnCursor =
+                    getContentResolver().query(selectedFileUri, null, null, null, null);
+            if (returnCursor != null) {
+                int sizeIndex = returnCursor.getColumnIndex(OpenableColumns.SIZE);
+                returnCursor.moveToFirst();
+                Long fileSize = returnCursor.getLong(sizeIndex);
+                returnCursor.close();
+                if (fileSize > maxFileSize) {
+                    Toast.makeText(this, R.string.info_attachment_max_allowed_file_size, Toast.LENGTH_LONG).show();
+                    return;
+                }
+            }
+            String mimeType = FileUtils.getMimeTypeByContentUriOrOther(this, selectedFileUri);
+            if (TextUtils.isEmpty(mimeType)) {
+                return;
+            }
+            if (!checkMimeType(mimeType)) {
+                Toast.makeText(this, R.string.info_file_attachment_mime_type_not_supported, Toast.LENGTH_LONG).show();
+                return;
+            }
+            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+            fileName = FileUtils.getFileName(this, selectedFileUri);
+            String fileFormat = FileUtils.getFileFormat(fileName);
+            String fileNameToWrite;
+            if (TextUtils.isEmpty(fileFormat)) {
+                String format = FileUtils.getFileFormat(FileUtils.getFile(this, selectedFileUri).getAbsolutePath());
+                if (TextUtils.isEmpty(format)) {
+                    return;
+                }
+                fileNameToWrite = timeStamp + "." + format;
+            } else {
+                fileNameToWrite = timeStamp + "." + fileFormat;
+            }
+
+            File mediaFile = FileClientService.getFilePath(fileNameToWrite, getApplicationContext(), mimeType);
+            new FileTaskAsync(mediaFile, selectedFileUri, this).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -338,6 +369,48 @@ public class MobiComAttachmentSelectorActivity extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    boolean validateCaptionTextAndShowDialog() {
+        if (!TextUtils.isEmpty(messageEditText.getText().toString().trim())) {
+            String inputMessage = messageEditText.getText().toString();
+            String[] inputMsg = inputMessage.toLowerCase().split(" ");
+            List<String> userInputList = Arrays.asList(inputMsg);
+
+            boolean disjointResult = (restrictedWords == null) || disjoint(restrictedWords, userInputList);
+            boolean restrictedWordMatches;
+
+            try {
+                String dynamicRegex = ApplozicSetting.getInstance(this).getRestrictedWordsRegex();
+                String pattern = !TextUtils.isEmpty(dynamicRegex) ? dynamicRegex : (alCustomizationSettings != null
+                        && !TextUtils.isEmpty(alCustomizationSettings.getRestrictedWordRegex()) ? alCustomizationSettings.getRestrictedWordRegex() : "");
+
+                restrictedWordMatches = !TextUtils.isEmpty(pattern) && Pattern.compile(pattern).matcher(inputMessage.trim()).matches();
+            } catch (PatternSyntaxException e) {
+                Utils.printLog(this, TAG, "The Regex to match message is invalid");
+                e.printStackTrace();
+                return false;
+            }
+
+            if (!(disjointResult && !restrictedWordMatches)) {
+                final AlertDialog.Builder alertDialog = new AlertDialog.Builder(this).
+                        setPositiveButton(R.string.ok_alert, new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+
+                            }
+                        }).setOnCancelListener(new DialogInterface.OnCancelListener() {
+                    @Override
+                    public void onCancel(DialogInterface dialog) {
+                    }
+                });
+                alertDialog.setTitle(alCustomizationSettings.getRestrictedWordMessage());
+                alertDialog.setCancelable(true);
+                alertDialog.create().show();
+                return false;
+            }
+        }
+        return true;
     }
 
     public class FileTaskAsync extends AsyncTask<Void, Integer, Boolean> {

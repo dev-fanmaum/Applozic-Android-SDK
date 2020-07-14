@@ -1,11 +1,8 @@
 package com.applozic.mobicommons.people.contact;
 
-import android.content.Context;
-import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 
 import com.applozic.mobicommons.json.JsonMarker;
-import com.applozic.mobicommons.people.ALContactProcessor;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
@@ -24,6 +21,7 @@ public class Contact extends JsonMarker {
     public static final String R_DRAWABLE = "R.drawable";
     public static final String DISABLE_CHAT_WITH_USER = "DISABLE_CHAT_WITH_USER";
     public static final String TRUE = "true";
+    public static final String AL_DISPLAY_NAME_UPDATED = "AL_DISPLAY_NAME_UPDATED";
     @Expose
     private String firstName = "";
     @Expose
@@ -38,7 +36,6 @@ public class Contact extends JsonMarker {
     private List<String> contactNumbers = new ArrayList<String>();
     private Map<String, String> phoneNumbers;
     private String contactNumber;
-    private String formattedContactNumber;
     @Expose
     private long contactId;
     private String fullName;
@@ -60,14 +57,12 @@ public class Contact extends JsonMarker {
     private boolean blockedBy;
     private String status;
     private short contactType;
-    private Short deviceContactType;
     private Short userTypeId;
     private Long deletedAtTime;
     private Long notificationAfterTime;
     private Long lastMessageAtTime;
     private Map<String, String> metadata;
     private Short roleType;
-    private String phoneDisplayName;
     private boolean applozicType = true;
 
     public Contact() {
@@ -95,43 +90,12 @@ public class Contact extends JsonMarker {
         this.userId = userId;
     }
 
-    public Contact(Context context, String userId) {
-        this.userId = userId;
-        this.processContactNumbers(context);
-    }
-
-    public Short getDeviceContactType() {
-        return deviceContactType;
-    }
-
-    public void setDeviceContactType(Short contactType) {
-        if (contactType == null) {
-            return;
-        }
-        this.deviceContactType = contactType;
-        setApplozicType(ContactType.APPLOZIC.getValue().equals(this.deviceContactType) || ContactType.DEVICE_AND_APPLOZIC.getValue().equals(this.deviceContactType));
-    }
-
     public short getContactType() {
         return contactType;
     }
 
     public void setContactType(short contactType) {
         this.contactType = contactType;
-    }
-
-    public void processContactNumbers(Context context) {
-        TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-        String countryCode = telephonyManager.getSimCountryIso().toUpperCase();
-        if (TextUtils.isEmpty(formattedContactNumber)) {
-            try {
-                if (context.getApplicationContext() instanceof ALContactProcessor) {
-                    setFormattedContactNumber(((ALContactProcessor) context.getApplicationContext()).processContact(getContactNumber(), countryCode));
-                }
-            } catch (ClassCastException e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     public boolean isApplozicType() {
@@ -142,22 +106,8 @@ public class Contact extends JsonMarker {
         this.applozicType = applozicType;
     }
 
-
-    public String getPhoneDisplayName() {
-        return phoneDisplayName;
-    }
-
-
-    public void setPhoneDisplayName(String phoneDisplayName) {
-        this.phoneDisplayName = phoneDisplayName;
-    }
-
-    public boolean isDeviceContact() {
-        return (deviceContactType != null && ContactType.DEVICE.getValue().equals(deviceContactType));
-    }
-
     public enum ContactType {
-        APPLOZIC(Short.valueOf("0")), DEVICE(Short.valueOf("1")), DEVICE_AND_APPLOZIC(Short.valueOf("2"));
+        APPLOZIC(Short.valueOf("0"));
 
         private Short value;
 
@@ -170,70 +120,12 @@ public class Contact extends JsonMarker {
         }
     }
 
-  /*//Todo: Will be used for device contacts
-    public void processContactNumbers(Context context) {
-        TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-        String countryCode = telephonyManager.getSimCountryIso().toUpperCase();
-        phoneNumbers = ContactUtils.getPhoneNumbers(context, getContactId());
-        if (TextUtils.isEmpty(getFormattedContactNumber()) && !TextUtils.isEmpty(getContactNumber())) {
-            setFormattedContactNumber(ContactNumberUtils.getPhoneNumber(getContactNumber(), countryCode));
-        }
-
-        if (!TextUtils.isEmpty(getContactNumber()) || phoneNumbers.isEmpty()) {
-            return;
-        }
-
-        String mobileNumber = null;
-        String mainNumber = null;
-        for (String phoneNumber : phoneNumbers.keySet()) {
-            setContactNumber(phoneNumber);
-            //if (phoneNumbers.get(phoneNumber).equals(ContactsContract.CommonDataKinds.Phone.TYPE_MAIN)) {
-            if (phoneNumbers.get(phoneNumber).equals("Main")) {
-                mainNumber = phoneNumber;
-                break;
-            }
-            if (phoneNumbers.get(phoneNumber).equals("Mobile")) {
-                //if (phoneNumbers.get(phoneNumber).equals(ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)) {
-                mobileNumber = phoneNumber;
-            }
-        }
-
-        if (!TextUtils.isEmpty(mobileNumber)) {
-            setContactNumber(mobileNumber);
-        }
-
-        if (!TextUtils.isEmpty(mainNumber)) {
-            setContactNumber(mainNumber);
-        }
-
-        //Note: contact.getContactNumber() is not a formattedNumber with country code so it might not match with
-        //phoneNumbers key
-        if (phoneNumbers.get(getContactNumber()) == null) {
-            for (String phoneNumber : phoneNumbers.keySet()) {
-                if (PhoneNumberUtils.compare(getContactNumber(), phoneNumber)) {
-                    setContactNumber(phoneNumber);
-                    break;
-                }
-            }
-        }
-
-        setFormattedContactNumber(ContactNumberUtils.getPhoneNumber(getContactNumber(), countryCode));
-    }*/
-
     public String getContactNumber() {
         return contactNumber;
     }
 
     public void setContactNumber(String contactNumber) {
         this.contactNumber = contactNumber;
-    }
-
-    public String getFormattedContactNumber() {
-        return TextUtils.isEmpty(formattedContactNumber) ? getContactNumber() : formattedContactNumber;
-    }
-
-    public void setFormattedContactNumber(String formattedContactNumber) {
-        this.formattedContactNumber = formattedContactNumber;
     }
 
     public List<String> getContactNumbers() {
@@ -285,16 +177,10 @@ public class Contact extends JsonMarker {
     }
 
     public String getDisplayName() {
-        if (formattedContactNumber != null) {
-            return TextUtils.isEmpty(phoneDisplayName) ? TextUtils.isEmpty(getFormattedContactNumber()) ? getContactIds() : getFormattedContactNumber() : phoneDisplayName;
-        }
         return TextUtils.isEmpty(fullName) ? (TextUtils.isEmpty(emailId) ? getContactIds() : emailId) : fullName;
     }
 
     public String getFullName() {
-        if (formattedContactNumber != null) {
-            return TextUtils.isEmpty(phoneDisplayName) ? fullName : phoneDisplayName;
-        }
         return fullName == null ? "" : fullName;
     }
 
@@ -425,7 +311,7 @@ public class Contact extends JsonMarker {
     }
 
     public String getContactIds() {
-        return TextUtils.isEmpty(getUserId()) ? getFormattedContactNumber() : getUserId();
+        return getUserId();
     }
 
     public String getImageURL() {
@@ -517,6 +403,10 @@ public class Contact extends JsonMarker {
         return metadata != null && metadata.containsKey(DISABLE_CHAT_WITH_USER) && TRUE.equals(metadata.get(DISABLE_CHAT_WITH_USER));
     }
 
+    public boolean isUserDisplayUpdateRequired() {
+        return metadata != null && !metadata.isEmpty() && metadata.containsKey(AL_DISPLAY_NAME_UPDATED) && !TRUE.equals(metadata.get(AL_DISPLAY_NAME_UPDATED));
+    }
+
     @Override
     public String toString() {
         return "Contact{" +
@@ -527,7 +417,6 @@ public class Contact extends JsonMarker {
                 ", contactNumbers=" + contactNumbers +
                 ", phoneNumbers=" + phoneNumbers +
                 ", contactNumber='" + contactNumber + '\'' +
-                ", formattedContactNumber='" + formattedContactNumber + '\'' +
                 ", contactId=" + contactId +
                 ", fullName='" + fullName + '\'' +
                 ", userId='" + userId + '\'' +
@@ -543,14 +432,12 @@ public class Contact extends JsonMarker {
                 ", blockedBy=" + blockedBy +
                 ", status='" + status + '\'' +
                 ", contactType=" + contactType +
-                ", deviceContactType=" + deviceContactType +
                 ", userTypeId=" + userTypeId +
                 ", deletedAtTime=" + deletedAtTime +
                 ", notificationAfterTime=" + notificationAfterTime +
                 ", lastMessageAtTime=" + lastMessageAtTime +
                 ", metadata=" + metadata +
                 ", roleType=" + roleType +
-                ", phoneDisplayName='" + phoneDisplayName + '\'' +
                 ", applozicType=" + applozicType +
                 '}';
     }

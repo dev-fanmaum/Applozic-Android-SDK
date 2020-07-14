@@ -20,8 +20,29 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.provider.MediaStore;
 import android.provider.Settings;
+
+import com.applozic.mobicomkit.listners.AlLogoutHandler;
+import com.applozic.mobicommons.file.ALFileProvider;
+import com.google.android.material.snackbar.Snackbar;
+
+import androidx.core.app.ActivityCompat;
+import androidx.fragment.app.DialogFragment;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.core.app.NavUtils;
+import androidx.core.app.TaskStackBuilder;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.core.view.MenuItemCompat;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SearchView;
+import androidx.appcompat.widget.Toolbar;
+
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
@@ -167,7 +188,7 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
     File mediaFile;
     File profilePhotoFile;
     SyncAccountStatusAsyncTask accountStatusAsyncTask;
-    String contactsGroupId;
+    String contactsGroupId, userDisplayName;
     private LocationRequest locationRequest;
     private Channel channel;
     private BaseContactService baseContactService;
@@ -180,7 +201,6 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
     private SearchListFragment searchListFragment;
     private LinearLayout serviceDisconnectionLayout;
     private ALStoragePermission alStoragePermission;
-
     private ImageView conversationContactPhoto;
     private TextView toolbarTitle;
     private TextView toolbarSubtitle;
@@ -237,7 +257,7 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
                     snackbar.dismiss();
                 }
             });
-            snackbar.setDuration(BaseTransientBottomBar.LENGTH_LONG);
+            snackbar.setDuration(Snackbar.LENGTH_LONG);
             ViewGroup group = (ViewGroup) snackbar.getView();
             TextView textView = (TextView) group.findViewById(R.id.snackbar_action);
             textView.setTextColor(Color.YELLOW);
@@ -276,7 +296,7 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
     @Override
     protected void onResume() {
         super.onResume();
-        Applozic.connectPublish(this);
+        Applozic.connectPublishWithVerifyToken(this, getString(R.string.auth_token_loading_message));
         if (!Utils.isInternetAvailable(getApplicationContext())) {
             String errorMessage = getResources().getString(R.string.internet_connection_not_available);
             showErrorMessageView(errorMessage);
@@ -305,7 +325,9 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
         if (mediaFile != null) {
             savedInstanceState.putSerializable(LOAD_FILE, mediaFile);
         }
-
+        if (userDisplayName != null) {
+            savedInstanceState.putSerializable(ConversationUIService.DISPLAY_NAME, userDisplayName);
+        }
         super.onSaveInstanceState(savedInstanceState);
     }
 
@@ -317,8 +339,9 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
 
         if (getSupportFragmentManager().getBackStackEntryCount() > 0) {
             if (getSupportFragmentManager().getBackStackEntryCount() == 1) {
-                Intent upIntent = NavUtils.getParentActivityIntent(this);
-                if (upIntent != null && isTaskRoot()) {
+
+                Intent upIntent = ApplozicSetting.getInstance(this).getParentActivityIntent(this);
+                if (upIntent != null) {
                     TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
                 }
                 ConversationActivity.this.finish();
@@ -326,11 +349,17 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
             }
             Boolean takeOrder = getIntent().getBooleanExtra(TAKE_ORDER, false);
             if (takeOrder && getSupportFragmentManager().getBackStackEntryCount() == 2) {
-                Intent upIntent = NavUtils.getParentActivityIntent(this);
-                if (upIntent != null && isTaskRoot()) {
-                    TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
+                try {
+                    String parentActivity = ApplozicSetting.getInstance(this).getParentActivityName(this);
+                    if (parentActivity != null) {
+                        Intent intent = new Intent(this, Class.forName(parentActivity));
+                        startActivity(intent);
+                    }
+                    ConversationActivity.this.finish();
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                    return false;
                 }
-                ConversationActivity.this.finish();
                 return true;
             } else {
                 getSupportFragmentManager().popBackStack();
@@ -419,15 +448,15 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
                 videoFileUri = savedInstanceState.getString(CAPTURED_VIDEO_URI) != null ?
                         Uri.parse(savedInstanceState.getString(CAPTURED_VIDEO_URI)) : null;
                 mediaFile = savedInstanceState.getSerializable(LOAD_FILE) != null ? (File) savedInstanceState.getSerializable(LOAD_FILE) : null;
-
+                userDisplayName = savedInstanceState.getString(ConversationUIService.DISPLAY_NAME);
                 contact = (Contact) savedInstanceState.getSerializable(CONTACT);
                 channel = (Channel) savedInstanceState.getSerializable(CHANNEL);
                 currentConversationId = savedInstanceState.getInt(CONVERSATION_ID);
                 if (contact != null || channel != null) {
                     if (channel != null) {
-                        conversation = ConversationFragment.newInstance(null, channel, currentConversationId, null);
+                        conversation = ConversationFragment.newInstance(null, channel, currentConversationId, null, userDisplayName);
                     } else {
-                        conversation = ConversationFragment.newInstance(contact, null, currentConversationId, null);
+                        conversation = ConversationFragment.newInstance(contact, null, currentConversationId, null, userDisplayName);
                     }
                     addFragment(this, conversation, ConversationUIService.CONVERSATION_FRAGMENT);
                 }
@@ -700,13 +729,6 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
             } else {
                 showSnackBar(R.string.phone_state_permission_not_granted);
             }
-        } else if (requestCode == PermissionsUtils.REQUEST_CALL_PHONE) {
-            if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                showSnackBar(R.string.phone_call_permission_granted);
-                processCall(contact, currentConversationId);
-            } else {
-                showSnackBar(R.string.phone_call_permission_not_granted);
-            }
         } else if (requestCode == PermissionsUtils.REQUEST_AUDIO_RECORD) {
             if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 showSnackBar(R.string.record_audio_permission_granted);
@@ -887,7 +909,7 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
 
     @Override
     public void onQuickConversationFragmentItemClick(View view, Contact contact, Channel channel, Integer conversationId, String searchString) {
-        conversation = ConversationFragment.newInstance(contact, channel, conversationId, searchString);
+        conversation = ConversationFragment.newInstance(contact, channel, conversationId, searchString, null);
         addFragment(this, conversation, ConversationUIService.CONVERSATION_FRAGMENT);
         this.channel = channel;
         this.contact = contact;
@@ -907,16 +929,41 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
 
     @Override
     public void onBackPressed() {
-        try {
-            Intent upIntent = NavUtils.getParentActivityIntent(this);
+        if (isFromSearch()) {
+            return;
+        }
+        if (getSupportFragmentManager().getBackStackEntryCount() == 1) {
+            try {
+                Intent upIntent = ApplozicSetting.getInstance(this).getParentActivityIntent(this);
+                if (upIntent != null) {
+                    TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            this.finish();
+            return;
+        }
+
+        Boolean takeOrder = getIntent().getBooleanExtra(TAKE_ORDER, false);
+        ConversationFragment conversationFragment = (ConversationFragment) getSupportFragmentManager().findFragmentByTag(ConversationUIService.CONVERSATION_FRAGMENT);
+        if (conversationFragment != null && conversationFragment.isVisible() && (conversationFragment.multimediaPopupGrid.getVisibility() == View.VISIBLE)) {
+            conversationFragment.hideMultimediaOptionGrid();
+            return;
+        }
+
+        if (takeOrder && getSupportFragmentManager().getBackStackEntryCount() == 2) {
+            Intent upIntent = ApplozicSetting.getInstance(this).getParentActivityIntent(this);
             if (upIntent != null && isTaskRoot()) {
                 TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+            ConversationActivity.this.finish();
+        } else if (getSupportFragmentManager().getBackStackEntryCount() > 1) {
+            getSupportFragmentManager().popBackStack();
+        } else {
+            super.onBackPressed();
         }
-        this.finish();
-        return;
+
     }
 
     public boolean isFromSearch() {
@@ -1122,33 +1169,13 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
                 }
                 callIntent.putExtra(ConversationUIService.CONTACT, contact);
                 startActivity(callIntent);
-            } else if (alCustomizationSettings.isShowActionDialWithOutCalling()) {
-                if (!TextUtils.isEmpty(contact.getContactNumber())) {
-                    Intent callIntent;
-                    String uri = "tel:" + contact.getContactNumber().trim();
-                    callIntent = new Intent(Intent.ACTION_DIAL);
-                    callIntent.setData(Uri.parse(uri));
-                    startActivity(callIntent);
-                }
             } else {
-                if (Utils.hasMarshmallow() && PermissionsUtils.checkSelfForCallPermission(this)) {
-                    applozicPermission.requestCallPermission();
-                } else if (PermissionsUtils.isCallPermissionGranted(this)) {
-                    if (!TextUtils.isEmpty(contact.getContactNumber())) {
-                        Intent callIntent;
-                        String uri = "tel:" + contact.getContactNumber().trim();
-                        callIntent = new Intent(Intent.ACTION_CALL);
-                        callIntent.setData(Uri.parse(uri));
-                        startActivity(callIntent);
-                    }
-                } else {
-                    snackbar = Snackbar.make(layout, R.string.phone_call_permission_not_granted,
-                            Snackbar.LENGTH_SHORT);
-                    snackbar.show();
-                }
+                snackbar = Snackbar.make(layout, R.string.phone_call_permission_not_granted,
+                        Snackbar.LENGTH_SHORT);
+                snackbar.show();
             }
-
-        } catch (Exception e) {
+        } catch (
+                Exception e) {
             Utils.printLog(this, "ConversationActivity", "Call permission is not added in androidManifest");
         }
     }

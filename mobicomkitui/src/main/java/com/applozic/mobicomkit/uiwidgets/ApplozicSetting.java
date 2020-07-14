@@ -1,12 +1,19 @@
 package com.applozic.mobicomkit.uiwidgets;
 
+import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.text.TextUtils;
+
+import androidx.core.app.NavUtils;
 
 import com.applozic.mobicomkit.api.MobiComKitClientService;
 import com.applozic.mobicomkit.api.account.user.MobiComUserPreference;
 import com.applozic.mobicommons.ApplozicService;
 import com.applozic.mobicommons.file.FileUtils;
+import com.applozic.mobicommons.json.GsonUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -74,6 +81,10 @@ public class ApplozicSetting {
     private static final String GALLERY_FILTER_OPTIONS = "GALLERY_FILTER_OPTIONS_";
     private static final String HIDE_GROUP_SUBTITLE = "HIDE_GROUP_SUBTITLE";
     private static final String RESTRICTED_WORDS_REGEX = "RESTRICTED_WORDS_REGEX";
+    private static final String PARENT_ACTIVITY_INTENT = "PARENT_ACTIVITY_INTENT";
+    private static final String ATTACHMENT_OPTIONS = "ATTACHMENT_OPTIONS";
+    private static final String GROUPS_SECTION_TAB = "GROUPS_SECTION_TAB";
+
     public static ApplozicSetting applozicSetting;
     public SharedPreferences sharedPreferences;
     private Context context;
@@ -724,8 +735,56 @@ public class ApplozicSetting {
         return this;
     }
 
+    public Intent getParentActivityIntent(Activity sourceActivity) {
+        String parentActivityName = sharedPreferences.getString(PARENT_ACTIVITY_INTENT, null);
+
+        try {
+            if (parentActivityName != null) {
+                final ComponentName target = new ComponentName(sourceActivity, parentActivityName);
+                return new Intent().setComponent(target);
+            } else {
+                return NavUtils.getParentActivityIntent(sourceActivity);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return NavUtils.getParentActivityIntent(sourceActivity);
+        }
+    }
+
+    public String getParentActivityName(Activity activity) {
+        String parentActivityName = sharedPreferences.getString(PARENT_ACTIVITY_INTENT, null);
+        return !TextUtils.isEmpty(parentActivityName) ? parentActivityName : NavUtils.getParentActivityName(activity);
+    }
+
+    public ApplozicSetting setParentActivity(String parentActivityName) {
+        sharedPreferences.edit().putString(PARENT_ACTIVITY_INTENT, parentActivityName).commit();
+        return this;
+    }
+
     public boolean clearAll() {
         return sharedPreferences.edit().clear().commit();
+    }
+
+    public Map<String, Boolean> getAttachmentOptions() {
+        String attachmentOptionString = sharedPreferences.getString(ATTACHMENT_OPTIONS, null);
+        if (!TextUtils.isEmpty(attachmentOptionString)) {
+            return (Map<String, Boolean>) GsonUtils.getObjectFromJson(sharedPreferences.getString(ATTACHMENT_OPTIONS, null), Map.class);
+        }
+        return null;
+    }
+
+    public ApplozicSetting setAttachmentOptions(Map<String, Boolean> attachmentOptions) {
+        sharedPreferences.edit().putString(ATTACHMENT_OPTIONS, GsonUtils.getJsonFromObject(attachmentOptions, Map.class)).commit();
+        return this;
+    }
+
+    public boolean isGroupsSectionTabHidden() {
+        return sharedPreferences.getBoolean(GROUPS_SECTION_TAB, false);
+    }
+
+    public ApplozicSetting setGroupsSectionTabHidden(boolean hideGroupsSectionTab) {
+        sharedPreferences.edit().putBoolean(GROUPS_SECTION_TAB, hideGroupsSectionTab).commit();
+        return this;
     }
 
     public enum RequestCode {

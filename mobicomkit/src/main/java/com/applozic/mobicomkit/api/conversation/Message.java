@@ -454,44 +454,6 @@ public class Message extends JsonMarker {
         if (getKeyString() != null && message.getKeyString() != null) {
             return (getKeyString().equals(message.getKeyString()));
         }
-
-       /* if ((isSentToMany() && !getContactIds().contains(message.getContactIds())) || (message.isSentToMany() && !message.getContactIds().contains(getContactIds()))) {
-            return false;
-        } else if (!isSentToMany() && !message.isSentToMany() && !PhoneNumberUtils.compare(to, message.to)) {
-            return false;
-        }
-
-        if (!getMessage().equals(message.getMessage()) && !getMessage().contains(message.getMessage()) && !message.getMessage().contains(getMessage())) {
-            return false;
-        }
-
-        if (getType() != null && message.getType() != null && ((isTypeOutbox() && !message.isTypeOutbox()) || (!isTypeOutbox() && message.isTypeOutbox()))) {
-            return false;
-        }
-
-        if (getTimeToLive() != null && !getTimeToLive().equals(message.getTimeToLive())) {
-            return false;
-        } else if (getTimeToLive() != null && !getCreatedAtTime().equals(message.getCreatedAtTime())) {
-            return false;
-        }
-
-        if ((getFilePaths() != null && !getFilePaths().equals(message.getFilePaths()))
-                || (message.getFilePaths() != null && !message.getFilePaths().equals(getFilePaths()))) {
-            return false;
-        } else if (getFileMetaKeyStrings() != null && message.getFileMetaKeyStrings() != null && !getFileMetaKeyStrings().equals(message.getFileMetaKeyStrings())) {
-            return false;
-        }
-*/
-        /*long createdTimeDifference = 0;
-        if (!getDelivered().equals(getDelivered())) {
-            createdTimeDifference = 240 * 1000;
-        }
-*//*
-        if (createdAtTime != null && message.getCreatedAtTime() != null &&
-                Math.abs(createdAtTime - message.getCreatedAtTime()) > createdTimeDifference) {
-            return false;
-        }
-*/
         return false;
     }
 
@@ -549,15 +511,6 @@ public class Message extends JsonMarker {
         return result;
     }
 
-  /*@Override
-    public int hashCode() {
-       *//* int result = getContactIds() != null ? getContactIds().hashCode() : 0;
-        result = 31 * result + (getTo() != null ? getTo().hashCode() : 0);
-        result = 31 * result + (getMessage() != null ? getMessage().hashCode() : 0);
-        result = 31 * result + (getTimeToLive() != null ? getTimeToLive().hashCode() : 0);*//*
-        return result;
-    }*/
-
     public boolean isCanceled() {
         return canceled;
     }
@@ -591,7 +544,7 @@ public class Message extends JsonMarker {
     }
 
     public boolean isDeliveredAndRead() {
-        return Message.Status.DELIVERED_AND_READ.getValue().shortValue() == getStatus();
+        return Message.Status.DELIVERED_AND_READ.getValue().equals(getStatus());
     }
 
     public boolean isReadStatus() {
@@ -706,6 +659,13 @@ public class Message extends JsonMarker {
         return getMetadata() != null && (getMetadata().containsKey(KM_ASSIGN) || getMetadata().containsKey(KM_STATUS));
     }
 
+    public String getConversationStatus() {
+        return (getMetadata() != null && getMetadata().containsKey(KM_STATUS)) ? getMetadata().get(KM_STATUS) : null;
+    }
+
+    public String getConversationAssignee() {
+        return (getMetadata() != null && getMetadata().containsKey(KM_ASSIGN)) ? getMetadata().get(KM_ASSIGN) : null;
+    }
 
     public boolean isIgnoreMessageAdding(Context context) {
         if (ApplozicClient.getInstance(context).isSubGroupEnabled() && MobiComUserPreference.getInstance(context).getParentGroupKey() != null || !TextUtils.isEmpty(MobiComUserPreference.getInstance(context).getCategoryName())) {
@@ -715,48 +675,6 @@ public class Message extends JsonMarker {
             return (subGroupFlag || categoryFlag || ApplozicClient.getInstance(context).isSubGroupEnabled() || !TextUtils.isEmpty(MobiComUserPreference.getInstance(context).getCategoryName()));
         }
         return ((ApplozicClient.getInstance(context).isActionMessagesHidden() && isActionMessage()) || hasHideKey());
-    }
-
-    @Override
-    public String toString() {
-        return "Message{" +
-                "createdAtTime=" + createdAtTime +
-                ", to='" + to + '\'' +
-                ", message='" + message + '\'' +
-                ", key='" + key + '\'' +
-                ", deviceKey='" + deviceKey + '\'' +
-                ", userKey='" + userKey + '\'' +
-                ", emailIds='" + emailIds + '\'' +
-                ", shared=" + shared +
-                ", sent=" + sent +
-                ", delivered=" + delivered +
-                ", type=" + type +
-                ", storeOnDevice=" + storeOnDevice +
-                ", contactIds='" + contactIds + '\'' +
-                ", groupId=" + groupId +
-                ", sendToDevice=" + sendToDevice +
-                ", scheduledAt=" + scheduledAt +
-                ", source=" + source +
-                ", timeToLive=" + timeToLive +
-                ", sentToServer=" + sentToServer +
-                ", fileMetaKey='" + fileMetaKey + '\'' +
-                ", filePaths=" + filePaths +
-                ", pairedMessageKey='" + pairedMessageKey + '\'' +
-                ", sentMessageTimeAtServer=" + sentMessageTimeAtServer +
-                ", canceled=" + canceled +
-                ", clientGroupId='" + clientGroupId + '\'' +
-                ", fileMeta=" + fileMeta +
-                ", messageId=" + messageId +
-                ", read=" + read +
-                ", attDownloadInProgress=" + attDownloadInProgress +
-                ", applicationId='" + applicationId + '\'' +
-                ", conversationId=" + conversationId +
-                ", topicId='" + topicId + '\'' +
-                ", connected=" + connected +
-                ", contentType=" + contentType +
-                ", metadata=" + metadata +
-                ", status=" + status +
-                '}';
     }
 
     public enum Source {
@@ -890,4 +808,47 @@ public class Message extends JsonMarker {
         }
     }
 
+    @Override
+    public String toString() {
+        return "Message{" +
+                "createdAtTime=" + createdAtTime +
+                ", to='" + to + '\'' +
+                ", message='" + message + '\'' +
+                ", key='" + key + '\'' +
+                ", deviceKey='" + deviceKey + '\'' +
+                ", userKey='" + userKey + '\'' +
+                ", emailIds='" + emailIds + '\'' +
+                ", shared=" + shared +
+                ", sent=" + sent +
+                ", delivered=" + delivered +
+                ", type=" + type +
+                ", storeOnDevice=" + storeOnDevice +
+                ", contactIds='" + contactIds + '\'' +
+                ", groupId=" + groupId +
+                ", sendToDevice=" + sendToDevice +
+                ", scheduledAt=" + scheduledAt +
+                ", source=" + source +
+                ", timeToLive=" + timeToLive +
+                ", sentToServer=" + sentToServer +
+                ", fileMetaKey='" + fileMetaKey + '\'' +
+                ", filePaths=" + filePaths +
+                ", pairedMessageKey='" + pairedMessageKey + '\'' +
+                ", sentMessageTimeAtServer=" + sentMessageTimeAtServer +
+                ", canceled=" + canceled +
+                ", clientGroupId='" + clientGroupId + '\'' +
+                ", fileMeta=" + fileMeta +
+                ", messageId=" + messageId +
+                ", read=" + read +
+                ", attDownloadInProgress=" + attDownloadInProgress +
+                ", applicationId='" + applicationId + '\'' +
+                ", conversationId=" + conversationId +
+                ", topicId='" + topicId + '\'' +
+                ", connected=" + connected +
+                ", contentType=" + contentType +
+                ", metadata=" + metadata +
+                ", status=" + status +
+                ", hidden=" + hidden +
+                ", replyMessage=" + replyMessage +
+                '}';
+    }
 }

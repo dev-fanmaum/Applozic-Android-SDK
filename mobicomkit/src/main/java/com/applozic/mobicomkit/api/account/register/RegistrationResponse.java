@@ -28,7 +28,9 @@ public class RegistrationResponse extends JsonMarker {
     private boolean enableEncryption;
     private Map<String, String> metadata;
     private Short roleType;
+    private String authToken;
     private Short pricingPackage = PricingType.STARTER.getValue();
+    private Long notificationAfter;
 
     public String getMessage() {
         return message;
@@ -178,6 +180,22 @@ public class RegistrationResponse extends JsonMarker {
         this.metadata = metadata;
     }
 
+    public Long getNotificationAfter() {
+        return notificationAfter;
+    }
+
+    public void setNotificationAfter(Long notificationAfter) {
+        this.notificationAfter = notificationAfter;
+    }
+
+    public String getAuthToken() {
+        return authToken;
+    }
+
+    public void setAuthToken(String authToken) {
+        this.authToken = authToken;
+    }
+
     public static enum PricingType {
 
         CLOSED(Short.valueOf("-1")), BETA(Short.valueOf("0")), STARTER(Short.valueOf("1")), LAUNCH(Short.valueOf("2")), GROWTH(Short.valueOf("3")), ENTERPRISE(
@@ -228,9 +246,11 @@ public class RegistrationResponse extends JsonMarker {
                 ", encryptionKey='" + encryptionKey + '\'' +
                 ", userEncryptionKey='" + userEncryptionKey + '\'' +
                 ", enableEncryption=" + enableEncryption +
+                ", metadata=" + metadata +
                 ", roleType=" + roleType +
+                ", authToken='" + authToken + '\'' +
                 ", pricingPackage=" + pricingPackage +
+                ", notificationAfter=" + notificationAfter +
                 '}';
     }
-
 }

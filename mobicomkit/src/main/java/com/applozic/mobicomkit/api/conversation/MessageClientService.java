@@ -10,6 +10,7 @@ import com.applozic.mobicomkit.api.MobiComKitClientService;
 import com.applozic.mobicomkit.api.MobiComKitConstants;
 import com.applozic.mobicomkit.api.account.user.MobiComUserPreference;
 import com.applozic.mobicomkit.api.account.user.UserDetail;
+import com.applozic.mobicomkit.api.account.user.UserService;
 import com.applozic.mobicomkit.api.attachment.FileClientService;
 import com.applozic.mobicomkit.api.attachment.FileMeta;
 import com.applozic.mobicomkit.api.conversation.database.MessageDatabaseService;
@@ -18,6 +19,7 @@ import com.applozic.mobicomkit.broadcast.BroadcastService;
 import com.applozic.mobicomkit.channel.service.ChannelService;
 import com.applozic.mobicomkit.contact.AppContactService;
 import com.applozic.mobicomkit.contact.BaseContactService;
+import com.applozic.mobicomkit.contact.database.ContactDatabase;
 import com.applozic.mobicomkit.feed.ApiResponse;
 import com.applozic.mobicomkit.feed.MessageResponse;
 import com.applozic.mobicomkit.sync.SmsSyncRequest;
@@ -80,6 +82,7 @@ public class MessageClientService extends MobiComKitClientService {
     private MessageDatabaseService messageDatabaseService;
     private HttpRequestUtils httpRequestUtils;
     private BaseContactService baseContactService;
+    private ContactDatabase contactDatabase;
 
     public MessageClientService(Context context) {
         super(context);
@@ -87,6 +90,7 @@ public class MessageClientService extends MobiComKitClientService {
         this.messageDatabaseService = new MessageDatabaseService(context);
         this.httpRequestUtils = new HttpRequestUtils(context);
         this.baseContactService = new AppContactService(context);
+        this.contactDatabase = new ContactDatabase(context);
     }
 
     public String getMtextDeliveryUrl() {
@@ -275,7 +279,7 @@ public class MessageClientService extends MobiComKitClientService {
         try {
             if (message.isContactMessage()) {
                 try {
-                    this.processMessage(message, null);
+                    this.processMessage(message, null, null);
                 } catch (Exception e) {
                     Utils.printLog(context, TAG, "Exception while sending contact message.");
                 }
@@ -309,8 +313,13 @@ public class MessageClientService extends MobiComKitClientService {
             if (broadcast) {
                 BroadcastService.sendMessageUpdateBroadcast(context, BroadcastService.INTENT_ACTIONS.MESSAGE_SYNC_ACK_FROM_SERVER.toString(), message);
             }
-
             messageDatabaseService.updateMessageSyncStatus(message, keyString);
+            if (message.getGroupId() == null && TextUtils.isEmpty(message.getContactIds())) {
+                Contact contact = contactDatabase.getContactById(message.getContactIds());
+                if (contact != null && contact.isUserDisplayUpdateRequired()) {
+                    UserService.getInstance(context).updateUserDisplayName(contact.getUserId(), contact.getDisplayName());
+                }
+            }
         } catch (Exception e) {
             Utils.printLog(context, TAG, "Error while sending pending messages.");
         }
@@ -318,17 +327,17 @@ public class MessageClientService extends MobiComKitClientService {
     }
 
     public void sendMessageToServer(Message message, Handler handler) throws Exception {
-        sendMessageToServer(message, handler, null);
+        sendMessageToServer(message, handler, null, null);
     }
 
-    public void sendMessageToServer(Message message, Handler handler, Class intentClass) throws Exception {
-        processMessage(message, handler);
+    public void sendMessageToServer(Message message, Handler handler, Class intentClass, String userDisplayName) throws Exception {
+        processMessage(message, handler, userDisplayName);
         if (message.getScheduledAt() != null && message.getScheduledAt() != 0 && intentClass != null) {
             new ScheduledMessageUtil(context, intentClass).createScheduleMessage(message, context);
         }
     }
 
-    public void processMessage(Message message, Handler handler) throws Exception {
+    public void processMessage(Message message, Handler handler, String userDisplayName) throws Exception {
         boolean isBroadcast = (message.getMessageId() == null);
 
         MobiComUserPreference userPreferences = MobiComUserPreference.getInstance(context);
@@ -502,6 +511,10 @@ public class MessageClientService extends MobiComKitClientService {
                     message.setConversationId(messageResponse.getConversationId());
                     message.setSentToServer(true);
                     message.setKeyString(keyString);
+
+                    if (contact != null && !TextUtils.isEmpty(userDisplayName) && contact.isUserDisplayUpdateRequired()) {
+                        UserService.getInstance(context).updateUserDisplayName(message.getTo(), userDisplayName);
+                    }
                 }
                 if (!skipMessage && !isOpenGroup) {
                     messageDatabaseService.updateMessage(messageId, message.getSentMessageTimeAtServer(), keyString, message.isSentToServer());
@@ -563,13 +576,9 @@ public class MessageClientService extends MobiComKitClientService {
         }
     }
 
-    public String getMessageSearchResult(String searchText) {
-        try {
-            if (!TextUtils.isEmpty(searchText)) {
-                return httpRequestUtils.getResponse(getKmConversationListUrl() + "?search=" + searchText, "application/json", "application/json");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+    public String getMessageSearchResult(String searchText) throws Exception {
+        if (!TextUtils.isEmpty(searchText)) {
+            return httpRequestUtils.getResponseWithException(getKmConversationListUrl() + "?search=" + searchText, "application/json", "application/json", false, null);
         }
         return null;
     }
@@ -724,54 +733,27 @@ public class MessageClientService extends MobiComKitClientService {
                 , "application/json", "application/json");
     }
 
-    public String getKmConversationList(int status, int pageSize, Long lastFetchTime) {
-        try {
-            StringBuilder urlBuilder = new StringBuilder(getKmConversationListUrl());
-            if (status == Channel.ALL_CONVERSATIONS) {
-                return getAllGroupsList(pageSize, lastFetchTime);
-            } else if (status == Channel.CLOSED_CONVERSATIONS) {
-                urlBuilder.append("?pageSize=");
-                urlBuilder.append(pageSize);
-                if (lastFetchTime != null && lastFetchTime != 0) {
-                    urlBuilder.append("&lastFetchTime=");
-                    urlBuilder.append(lastFetchTime);
-                }
-                urlBuilder.append("&status=2&status=3&status=4&status=5");
-                return httpRequestUtils.getResponse(urlBuilder.toString(), "application/json", "application/json");
-            } else if (status == Channel.ASSIGNED_CONVERSATIONS) {
-                urlBuilder.append("/assigned?userId=");
-                urlBuilder.append(URLEncoder.encode(MobiComUserPreference.getInstance(context).getUserId(), "UTF-8"));
-                urlBuilder.append("&pageSize=");
-                urlBuilder.append(pageSize);
-                if (lastFetchTime != null && lastFetchTime != 0) {
-                    urlBuilder.append("&lastFetchTime=");
-                    urlBuilder.append(lastFetchTime);
-                }
-                urlBuilder.append("&status=0&status=6&status=-1");
-                return httpRequestUtils.getResponse(urlBuilder.toString(), "application/json", "application/json");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+    public String getKmConversationList(int[] statusArray, String assigneeId, int pageSize, Long lastFetchTime) throws Exception {
+        StringBuilder urlBuilder = new StringBuilder(getKmConversationListUrl());
+        if (!TextUtils.isEmpty(assigneeId)) {
+            urlBuilder.append("/assigned?userId=").append(URLEncoder.encode(assigneeId, "UTF-8"));
         }
-        return null;
+        urlBuilder.append("&pageSize=").append(pageSize);
+        if (lastFetchTime != null && lastFetchTime != 0) {
+            urlBuilder.append("&lastFetchTime=").append(lastFetchTime);
+        }
+        if (statusArray != null && statusArray.length > 0) {
+            for (int status : statusArray) {
+                urlBuilder.append("&status=").append(status);
+            }
+        }
+        return httpRequestUtils.getResponseWithException(urlBuilder.toString(), "application/json", "application/json", false, null);
     }
 
-    public String getAllGroupsList(int pageSize, Long lastFetchTime) {
-        try {
-            StringBuilder urlBuilder = new StringBuilder(getAllGroupsUrl());
-            if (pageSize > 0) {
-                urlBuilder.append("?pageSize=");
-                urlBuilder.append(pageSize);
-            }
-            if (lastFetchTime != null && lastFetchTime > 0) {
-                urlBuilder.append("&lastFetchTime=");
-                urlBuilder.append(lastFetchTime);
-            }
-            return httpRequestUtils.getResponse(urlBuilder.toString(), "application/json", "application/json");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
+    public String getKmConversationList(int status, int pageSize, Long lastFetchTime) throws Exception {
+        return getKmConversationList(status == Channel.CLOSED_CONVERSATIONS ? new int[]{2} : new int[]{0, 6},
+                status == Channel.ASSIGNED_CONVERSATIONS ? MobiComUserPreference.getInstance(context).getUserId() : null,
+                pageSize, lastFetchTime);
     }
 
     public String deleteMessage(Message message) {
@@ -929,5 +911,4 @@ public class MessageClientService extends MobiComKitClientService {
         }
         return null;
     }
-
 }

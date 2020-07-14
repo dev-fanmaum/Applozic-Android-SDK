@@ -16,12 +16,14 @@ import com.applozic.mobicomkit.api.account.user.PushNotificationTask;
 import com.applozic.mobicomkit.api.account.user.User;
 import com.applozic.mobicomkit.api.account.user.UserLoginTask;
 import com.applozic.mobicomkit.api.account.user.UserLogoutTask;
+import com.applozic.mobicomkit.api.authentication.AlAuthService;
 import com.applozic.mobicomkit.api.conversation.ApplozicMqttIntentService;
 import com.applozic.mobicomkit.api.notification.MobiComPushReceiver;
 import com.applozic.mobicomkit.api.notification.NotificationChannels;
 import com.applozic.mobicomkit.broadcast.ApplozicBroadcastReceiver;
 import com.applozic.mobicomkit.broadcast.BroadcastService;
 import com.applozic.mobicomkit.contact.database.ContactDatabase;
+import com.applozic.mobicomkit.listners.AlCallback;
 import com.applozic.mobicomkit.listners.AlLoginHandler;
 import com.applozic.mobicomkit.listners.AlLogoutHandler;
 import com.applozic.mobicomkit.listners.AlPushNotificationHandler;
@@ -64,15 +66,6 @@ public class Applozic {
             applozic = new Applozic(ApplozicService.getContext(context));
         }
         return applozic;
-    }
-
-    public Applozic enableDeviceContactSync(boolean enable) {
-        sharedPreferences.edit().putBoolean(ENABLE_DEVICE_CONTACT_SYNC, enable).apply();
-        return this;
-    }
-
-    public boolean isDeviceContactSync() {
-        return sharedPreferences.getBoolean(ENABLE_DEVICE_CONTACT_SYNC, false);
     }
 
     public String getApplicationKey() {
@@ -134,6 +127,21 @@ public class Applozic {
     public static void connectPublish(Context context) {
         connectPublish(context, true);
         connectPublish(context, false);
+    }
+
+    public static void connectPublishWithVerifyToken(final Context context, String loadingMessage) {
+        AlAuthService.verifyToken(context, loadingMessage, new AlCallback() {
+            @Override
+            public void onSuccess(Object response) {
+                connectPublish(context, true);
+                connectPublish(context, false);
+            }
+
+            @Override
+            public void onError(Object error) {
+
+            }
+        });
     }
 
 
@@ -205,7 +213,7 @@ public class Applozic {
             registrationResponse.setMessage("User already Logged in");
             loginHandler.onSuccess(registrationResponse, context);
         } else {
-            new UserLoginTask(user, loginHandler, context).execute();
+            new UserLoginTask(user, loginHandler, context).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);;
         }
     }
 
@@ -224,12 +232,12 @@ public class Applozic {
             }
             loginHandler.onSuccess(registrationResponse, context);
         } else {
-            new UserLoginTask(user, loginHandler, context).execute();
+            new UserLoginTask(user, loginHandler, context).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);;
         }
     }
 
     public static void connectUserWithoutCheck(Context context, User user, AlLoginHandler loginHandler) {
-        new UserLoginTask(user, loginHandler, context).execute();
+        new UserLoginTask(user, loginHandler, context).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);;
     }
 
     public static boolean isConnected(Context context) {
@@ -255,7 +263,7 @@ public class Applozic {
             registrationResponse.setMessage("User already Logged in");
             loginHandler.onSuccess(registrationResponse, context);
         } else {
-            new UserLoginTask(user, loginHandler, context).execute();
+            new UserLoginTask(user, loginHandler, context).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);;
         }
     }
 
@@ -264,7 +272,7 @@ public class Applozic {
     }
 
     public static void registerForPushNotification(Context context, String pushToken, AlPushNotificationHandler handler) {
-        new PushNotificationTask(context, pushToken, handler).execute();
+        new PushNotificationTask(context, pushToken, handler).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     public static void registerForPushNotification(Context context, AlPushNotificationHandler handler) {
