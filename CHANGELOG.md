@@ -1,6 +1,27 @@
 
 ## Changelog
 
+**Version  5.93** - Friday, 6 Nov 2020
+
+### Enhancement :
+* Added support for deleting messages for all in the open group.
+* Added API method and task for group list fetching.
+* Security Improvement in KeyGenerator for key pair.
+
+### Fixes :
+* Fixed the NPE in Keystore.
+
+**Version  5.92** - Wednesday, 14 Oct 2020
+* Fixed the crash which was happening while creating a group and launching group chat.
+
+**Version 5.91** - Friday, 9 Oct 2020
+* Added support for link preview for URLs in chat.
+* Added support for user activate and deactivate.
+* Fixed the issue in full view of image orientation was ignored in some devices.
+
+**Version 5.90** - Friday, 4 Sep 2020
+* Security improvements in shared preferences 
+
 **Version 5.80** - Tuesday, 23 June 2020
 
 * Security enhancements: 

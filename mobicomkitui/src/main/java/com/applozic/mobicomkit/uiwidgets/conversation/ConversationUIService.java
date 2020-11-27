@@ -631,6 +631,12 @@ public class ConversationUIService {
         }
     }
 
+    public void updateChannelMuteMenuOptionForGroupId(Integer groupId) {
+        if (BroadcastService.isIndividual() && getConversationFragment() != null && getConversationFragment().getCurrentChannelKey(groupId)) {
+            getConversationFragment().updateChannelMuteMenuOptionForGroupId(groupId);
+        }
+    }
+
     public void updateChannelSync() {
         updateChannelSync(false);
     }
@@ -769,9 +775,11 @@ public class ConversationUIService {
 
     }
 
-    public void updateMessageMetadata(String keyString) {
-        if (getConversationFragment() != null) {
-            getConversationFragment().updateMessageMetadata(keyString);
+    public void updateMessageMetadata(String keyString, String userId, Integer groupId, Boolean isOpenGroup, Map<String, String> messageMetaData) {
+        ConversationFragment conversationFragment = getConversationFragment();
+        if (conversationFragment != null && (!TextUtils.isEmpty(userId) && conversationFragment.getContact() != null && userId.equals(conversationFragment.getContact().getUserId()) ||
+                conversationFragment.getCurrentChannelKey(groupId))) {
+            getConversationFragment().updateMessageMetadata(keyString, userId, groupId, isOpenGroup, messageMetaData);
         }
     }
 
