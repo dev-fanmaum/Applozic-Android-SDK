@@ -1,6 +1,12 @@
 
 ## Changelog
 
+**Version  5.95** - Thursday, 10 Dec 2020
+
+* Fixed s3 file upload issue.
+* Fixed user block bug in group of two.
+* **Async tasks replaced with custom executor implementation.**
+
 **Version  5.94** - Monday, 30 Nov 2020
 
 * Enabled report message in open channel
