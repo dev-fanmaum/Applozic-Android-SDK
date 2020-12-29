@@ -339,9 +339,8 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
 
         if (getSupportFragmentManager().getBackStackEntryCount() > 0) {
             if (getSupportFragmentManager().getBackStackEntryCount() == 1) {
-
                 Intent upIntent = ApplozicSetting.getInstance(this).getParentActivityIntent(this);
-                if (upIntent != null) {
+                if (upIntent != null && isTaskRoot()) {
                     TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
                 }
                 ConversationActivity.this.finish();
@@ -935,7 +934,7 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
         if (getSupportFragmentManager().getBackStackEntryCount() == 1) {
             try {
                 Intent upIntent = ApplozicSetting.getInstance(this).getParentActivityIntent(this);
-                if (upIntent != null) {
+                if (upIntent != null && isTaskRoot()) {
                     TaskStackBuilder.create(this).addNextIntentWithParentStack(upIntent).startActivities();
                 }
             } catch (Exception e) {
@@ -963,7 +962,6 @@ public class ConversationActivity extends AppCompatActivity implements MessageCo
         } else {
             super.onBackPressed();
         }
-
     }
 
     public boolean isFromSearch() {
